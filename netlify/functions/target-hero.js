@@ -11,23 +11,26 @@ exports.handler = async (event) => {
 
     const propertyToken = 'f1aab501-1f19-46a6-32a3-6750bcf7276e';
 
+    const urlParam = event.queryStringParameters?.url;
+    const urlObj = urlParam ? new URL(urlParam) : null;
+    const targetUrl = urlObj?.toString() || 'https://example.com';
+
     const payload = {
       id: { marketingCloudVisitorId: mcvid },
       property: { token: propertyToken },
       context: {
         channel: 'web',
-        browser: { host: 'server' },
-        address: { url: 'https://example.com' },
+        browser: { host: urlObj?.host || 'server' },
+        address: { url: targetUrl },
         screen: { width: 1200, height: 1400 },
       },
-      execute: {
-        mboxes: [
-          {
-            name: 'hero-test',
-            index: 0,
-            parameters: { a: 1000, b: 2 },
+      prefetch: {
+        pageLoad: {
+          parameters: {
+            a: 1000,
+            b: 2,
           },
-        ],
+        },
       },
     };
 
@@ -39,7 +42,7 @@ exports.handler = async (event) => {
     });
 
     const res = await fetch(
-      `https://dexataptrsd.tt.omtrdc.net/rest/v1/delivery?client=dexataptrsd&sessionId=${sessionId}`,
+      `https://dexataptrsd.tt.omtrdc.net/rest/v1/delivery?client=dexataptrsd&sessionId=${sessionId}&at_property=f1aab501-1f19-46a6-32a3-6750bcf7276e`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -47,15 +50,23 @@ exports.handler = async (event) => {
       }
     );
 
-    if (!res.ok) throw new Error('Target delivery failed');
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      console.error('Target delivery failed', res.status, errBody);
+      return {
+        statusCode: res.status,
+        headers: { 'Content-Type': 'application/json' },
+        body: errBody || JSON.stringify({ error: 'Target delivery failed' }),
+      };
+    }
     const json = await res.json();
 
     console.log('Target response status', res.status);
     console.log('Target response body', JSON.stringify(json, null, 2));
 
     const offer =
-      json?.execute?.mboxes?.[0]?.options?.[0]?.content ||
-      json?.prefetch?.mboxes?.[0]?.options?.[0]?.content ||
+      json?.prefetch?.pageLoad?.options?.[0]?.content ||
+      json?.execute?.pageLoad?.options?.[0]?.content ||
       null;
 
     return {

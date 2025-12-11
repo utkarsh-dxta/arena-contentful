@@ -21,7 +21,9 @@ async function fetchTargetHero() {
         return id;
       })();
 
-    const res = await fetch('/.netlify/functions/target-hero', {
+    const url = encodeURIComponent(window.location.href);
+
+    const res = await fetch(`/.netlify/functions/target-hero?url=${url}`, {
       headers: {
         'x-session-id': sessionId,
         'x-mcvid': mcvid,
@@ -30,15 +32,9 @@ async function fetchTargetHero() {
 
     if (!res.ok) throw new Error('Target delivery failed');
     const offer = await res.json();
+    // Expect shape: { hero, icon[1], strip, ... }
     if (!offer) return null;
-
-    return {
-      eyebrow: offer.eyebrow,
-      title: offer.title,
-      subtitle: offer.subtitle,
-      ctaLabel: offer.ctaLabel,
-      ctaUrl: offer.ctaUrl,
-    };
+    return offer;
   } catch (err) {
     console.error('Adobe Target error:', err);
     return null;
@@ -59,21 +55,16 @@ function App() {
           fetchTargetHero(),
         ]);
 
-        const icons = homepage?.icons ? [...homepage.icons] : [];
-        while (icons.length < 4) {
-          icons.push(...icons.slice(0, 4 - icons.length));
-        }
+        console.log('Contentful homepage JSON:', homepage);
+        console.log('Target offer JSON:', JSON.stringify(targetHero, null, 2));
 
-        const contentfulHero = homepage?.hero;
-        const heroWithOverride =
-          targetHero && contentfulHero
-            ? { ...targetHero, backgroundImage: contentfulHero.backgroundImage, button: contentfulHero.button }
-            : contentfulHero;
+        const { heroWithOverride, iconsWithOverride, stripWithOverride } =
+          applyTargetOverrides(homepage, targetHero);
 
         setData({
           hero: heroWithOverride,
-          icons: icons.slice(0, 4),
-          strip: homepage?.strip,
+          icons: iconsWithOverride,
+          strip: stripWithOverride,
           footer: homepage?.footer,
         });
       } catch (err) {
@@ -103,8 +94,12 @@ function App() {
 function Hero({ data }) {
   if (!data) return <SectionPlaceholder label="Hero content missing" />;
   
-  const bgUrl = data.backgroundImage?.fields?.file?.url;
-  const button = data.button?.fields;
+  // backgroundImage may be a string (Target) or a Contentful asset object.
+  const bgUrl =
+    typeof data.backgroundImage === 'string'
+      ? data.backgroundImage
+      : data.backgroundImage?.fields?.file?.url;
+  const button = data.button?.fields || data.button;
   
   return (
     <section
@@ -148,7 +143,11 @@ function Icons({ data }) {
       <div className="container">
         <div className="icons-grid">
           {data.map((icon, idx) => {
-            const imageUrl = icon.image?.fields?.file?.url;
+            // image may be a string (Target) or a Contentful asset object.
+            const imageUrl =
+              typeof icon.image === 'string'
+                ? icon.image
+                : icon.image?.fields?.file?.url;
             return (
               <div
                 key={idx}
@@ -176,7 +175,7 @@ function Icons({ data }) {
 function Strip({ data }) {
   if (!data) return <SectionPlaceholder label="Strip missing" />;
   
-  const button = data.button?.fields;
+  const button = data.button?.fields || data.button;
   
   return (
     <section
@@ -230,6 +229,38 @@ function SectionPlaceholder({ label }) {
       <div className="placeholder card muted">{label}</div>
     </section>
   );
+}
+
+// Apply Target overrides to Contentful data.
+function applyTargetOverrides(homepage, target) {
+  const heroWithOverride = target?.hero || homepage?.hero;
+
+  const icons = homepage?.icons ? [...homepage.icons] : [];
+
+  // Handle keys like "icon[1]" (1-based index from Target).
+  Object.entries(target || {}).forEach(([key, value]) => {
+    const match = key.match(/^icon\[(\d+)\]$/i);
+    if (!match) return;
+    const idx = Math.max(0, parseInt(match[1], 10) - 1); // 1-based to 0-based
+    const replacement = Array.isArray(value) ? value[0] : value;
+    if (replacement) {
+      while (icons.length <= idx) icons.push(undefined);
+      icons[idx] = replacement;
+    }
+  });
+
+  // Fill to at least 4 items to keep layout stable.
+  while (icons.length < 4 && icons.length > 0) {
+    icons.push(...icons.slice(0, Math.min(4 - icons.length, icons.length)));
+  }
+
+  const stripWithOverride = target?.strip || homepage?.strip;
+
+  return {
+    heroWithOverride,
+    iconsWithOverride: icons.slice(0, 4),
+    stripWithOverride,
+  };
 }
 
 export default App;
