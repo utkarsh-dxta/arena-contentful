@@ -20,6 +20,11 @@ exports.handler = async (event) => {
       client.getEntries({ content_type: 'footer_vod', limit: 1, include: 3 }),
     ]);
 
+    console.log('Contentful hero JSON:', JSON.stringify(heroRes.items[0]?.fields, null, 2));
+    console.log('Contentful icons JSON:', JSON.stringify(iconsRes.items.map((i) => i.fields), null, 2));
+    console.log('Contentful strip JSON:', JSON.stringify(stripRes.items[0]?.fields, null, 2));
+    console.log('Contentful footer JSON:', JSON.stringify(footerRes.items[0]?.fields, null, 2));
+
     const hero = heroRes.items[0]?.fields || null;
     const icons = iconsRes.items.map((i) => i.fields);
     const strip = stripRes.items[0]?.fields || null;

@@ -64,15 +64,23 @@ exports.handler = async (event) => {
     console.log('Target response status', res.status);
     console.log('Target response body', JSON.stringify(json, null, 2));
 
-    const offer =
-      json?.prefetch?.pageLoad?.options?.[0]?.content ||
-      json?.execute?.pageLoad?.options?.[0]?.content ||
-      null;
+    const mergeOptions = (options = []) =>
+      options.reduce((acc, opt) => {
+        if (opt?.content && typeof opt.content === 'object') {
+          return { ...acc, ...opt.content };
+        }
+        return acc;
+      }, {});
+
+    const prefetchMerged = mergeOptions(json?.prefetch?.pageLoad?.options);
+    const executeMerged = mergeOptions(json?.execute?.pageLoad?.options);
+    const offer = { ...prefetchMerged, ...executeMerged };
+    const hasContent = Object.keys(offer).length > 0 ? offer : null;
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(offer),
+      body: JSON.stringify(hasContent),
     };
   } catch (err) {
     console.error('target-hero function error:', err);
