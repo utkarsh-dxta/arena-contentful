@@ -9,8 +9,11 @@ exports.handler = async (event) => {
       event.headers?.['x-mcvid'] ||
       '74489933867880856123472568655649636017';
 
+    const propertyToken = 'f1aab501-1f19-46a6-32a3-6750bcf7276e';
+
     const payload = {
       id: { marketingCloudVisitorId: mcvid },
+      property: { token: propertyToken },
       context: {
         channel: 'web',
         browser: { host: 'server' },
@@ -28,6 +31,13 @@ exports.handler = async (event) => {
       },
     };
 
+    console.log('Target request', {
+      sessionId,
+      mcvid,
+      propertyToken,
+      payload,
+    });
+
     const res = await fetch(
       `https://dexataptrsd.tt.omtrdc.net/rest/v1/delivery?client=dexataptrsd&sessionId=${sessionId}`,
       {
@@ -39,6 +49,9 @@ exports.handler = async (event) => {
 
     if (!res.ok) throw new Error('Target delivery failed');
     const json = await res.json();
+
+    console.log('Target response status', res.status);
+    console.log('Target response body', JSON.stringify(json, null, 2));
 
     const offer =
       json?.execute?.mboxes?.[0]?.options?.[0]?.content ||
