@@ -2,48 +2,6 @@ import { useEffect, useState } from 'react';
 import { getHomepage } from '../contentfulClient';
 import '../App.css';
 
-/*
-// Minimal helper to fetch a Target offer for the hero via Netlify Function.
-// Commented out while Tealium handles Adobe Target delivery.
-async function fetchTargetHero() {
-  try {
-    const sessionId =
-      sessionStorage.getItem('targetSessionId') ||
-      (() => {
-        const id = `sess-${Math.random().toString(36).slice(2)}`;
-        sessionStorage.setItem('targetSessionId', id);
-        return id;
-      })();
-
-    const mcvid =
-      localStorage.getItem('mcvid') ||
-      (() => {
-        const id = '74489933867880856123472568655649636017';
-        localStorage.setItem('mcvid', id);
-        return id;
-      })();
-
-    const url = encodeURIComponent(window.location.href);
-
-    const res = await fetch(`/.netlify/functions/target-hero?url=${url}`, {
-      headers: {
-        'x-session-id': sessionId,
-        'x-mcvid': mcvid,
-      },
-    });
-
-    if (!res.ok) throw new Error('Target delivery failed');
-    const offer = await res.json();
-    // Expect shape: { hero, icon[1], strip, ... }
-    if (!offer) return null;
-    return offer;
-  } catch (err) {
-    console.error('Adobe Target error:', err);
-    return null;
-  }
-}
-*/
-
 function Home() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -53,26 +11,14 @@ function Home() {
     const preview = new URLSearchParams(window.location.search).has('preview');
     async function load() {
       try {
-        // Target call disabled (handled via Tealium). Keep placeholder for activity JSON.
-        const [homepage /*, targetHero */] = await Promise.all([
-          getHomepage({ preview }),
-          // fetchTargetHero(),
-        ]);
+        const homepage = await getHomepage({ preview });
 
-        console.log('Contentful homepage JSON:', homepage);
-        const targetHero = null;
-        console.log('Target offer JSON:', JSON.stringify(targetHero, null, 2));
+        console.log(
+          'Merged homepage JSON (Contentful + Target on server):',
+          homepage
+        );
 
-        const { heroWithOverride, iconsWithOverride, stripWithOverride } =
-          applyTargetOverrides(homepage, targetHero);
-
-        setData({
-          hero: heroWithOverride,
-          icons: iconsWithOverride,
-          strip: stripWithOverride,
-          footer: homepage?.footer,
-          dataLayer: homepage?.dataLayer,
-        });
+        setData(homepage);
 
         // Push dataLayer from Contentful (dataLayerVod) to Tealium once available.
         if (homepage?.dataLayer && window.utag && typeof window.utag.view === 'function') {
@@ -241,38 +187,6 @@ function SectionPlaceholder({ label }) {
       <div className="placeholder card muted">{label}</div>
     </section>
   );
-}
-
-// Apply Target overrides to Contentful data.
-function applyTargetOverrides(homepage, target) {
-  const heroWithOverride = target?.hero || homepage?.hero;
-
-  const icons = homepage?.icons ? [...homepage.icons] : [];
-
-  // Handle keys like "icon[1]" (1-based index from Target).
-  Object.entries(target || {}).forEach(([key, value]) => {
-    const match = key.match(/^icon\[(\d+)\]$/i);
-    if (!match) return;
-    const idx = Math.max(0, parseInt(match[1], 10) - 1); // 1-based to 0-based
-    const replacement = Array.isArray(value) ? value[0] : value;
-    if (replacement) {
-      while (icons.length <= idx) icons.push(undefined);
-      icons[idx] = replacement;
-    }
-  });
-
-  // Fill to at least 4 items to keep layout stable.
-  while (icons.length < 4 && icons.length > 0) {
-    icons.push(...icons.slice(0, Math.min(4 - icons.length, icons.length)));
-  }
-
-  const stripWithOverride = target?.strip || homepage?.strip;
-
-  return {
-    heroWithOverride,
-    iconsWithOverride: icons.slice(0, 4),
-    stripWithOverride,
-  };
 }
 
 export default Home;
