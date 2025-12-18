@@ -31,18 +31,40 @@ export async function getHomepage({ preview = false } = {}) {
     return mid || null;
   }
 
-  let mcvid = localStorage.getItem('mcvid');
-  if (!mcvid) {
-    const cookieMid = getMcvidFromAmcvCookie();
-    if (cookieMid) {
-      mcvid = cookieMid;
-      localStorage.setItem('mcvid', mcvid);
-    }
+  function getMcvidWhenReady(retries = 10, delay = 500) {
+    return new Promise((resolve, reject) => {
+      function check() {
+        let mcvid = localStorage.getItem('mcvid');
+        if (mcvid) {
+          return resolve(mcvid);
+        }
+  
+        const cookieMid = getMcvidFromAmcvCookie();
+        if (cookieMid) {
+          localStorage.setItem('mcvid', cookieMid);
+          return resolve(cookieMid);
+        }
+  
+        if (retries <= 0) {
+          return reject(new Error('mcvid not found'));
+        }
+  
+        retries--;
+        setTimeout(check, delay);
+      }
+  
+      check();
+    });
   }
+  const mcvid = await getMcvidWhenReady();
+  
+  /*
   if (!mcvid) {
     mcvid = '74489933867880856123472568655649636017';
     localStorage.setItem('mcvid', mcvid);
   }
+  */
+  
 
   const res = await fetch(`/.netlify/functions/homepage?${qs.toString()}`, {
     headers: {
