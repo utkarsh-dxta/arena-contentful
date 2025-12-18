@@ -31,40 +31,21 @@ export async function getHomepage({ preview = false } = {}) {
     return mid || null;
   }
 
-  function getMcvidWhenReady(retries = 10, delay = 500) {
-    return new Promise((resolve, reject) => {
-      function check() {
-        let mcvid = localStorage.getItem('mcvid');
-        if (mcvid) {
-          return resolve(mcvid);
-        }
-  
-        const cookieMid = getMcvidFromAmcvCookie();
-        if (cookieMid) {
-          localStorage.setItem('mcvid', cookieMid);
-          return resolve(cookieMid);
-        }
-  
-        if (retries <= 0) {
-          return reject(new Error('mcvid not found'));
-        }
-  
-        retries--;
-        setTimeout(check, delay);
-      }
-  
-      check();
-    });
+  // ALWAYS check cookie first (Web SDK is source of truth)
+  let mcvid = getMcvidFromAmcvCookie();
+
+  // Only use localStorage if cookie isn't available yet
+  if (!mcvid) {
+    mcvid = localStorage.getItem('mcvid');
   }
-  const mcvid = await getMcvidWhenReady();
-  
-  /*
+
+  // Fallback only if neither exists
   if (!mcvid) {
     mcvid = '74489933867880856123472568655649636017';
-    localStorage.setItem('mcvid', mcvid);
   }
-  */
-  
+
+  // Always update localStorage with current value (whether from cookie or fallback)
+  localStorage.setItem('mcvid', mcvid);
 
   const res = await fetch(`/.netlify/functions/homepage?${qs.toString()}`, {
     headers: {
