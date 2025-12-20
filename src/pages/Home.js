@@ -36,7 +36,21 @@ function Home() {
     load();
   }, []);
 
-  if (loading) return <div className="loading">Loading…</div>;
+  if (loading) {
+    // Show static blurred hero until consent is granted and content loads
+    return (
+      <div
+        className="loading"
+        style={{
+          minHeight: '100vh',
+          backgroundImage: 'url(/blur%20HP.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+        aria-label="Loading"
+      />
+    );
+  }
   if (error || !data) return <div className="error">Could not load content.</div>;
 
   return (
