@@ -16,35 +16,58 @@ function mergeTargetOptions(json) {
   return Object.keys(offer).length > 0 ? offer : null;
 }
 
-// Apply Target overrides to the homepage JSON (hero, icons, strip).
-function applyTargetOverrides(homepage, target) {
-  const heroWithOverride = target?.hero || homepage?.hero;
+// Recursively apply Target overrides by matching offer keys to `targetId` on any node.
+// Only properties present in the offer are overridden; all others stay as-is.
+function applyTargetIdOverrides(node, offers = {}) {
+  if (!node || typeof node !== 'object') return node;
 
-  const icons = homepage?.icons ? [...homepage.icons] : [];
+  if (Array.isArray(node)) {
+    return node.map((item) => applyTargetIdOverrides(item, offers));
+  }
 
-  // Handle keys like "icon[1]" (1-based index from Target).
-  Object.entries(target || {}).forEach(([key, value]) => {
-    const match = key.match(/^icon\[(\d+)\]$/i);
-    if (!match) return;
-    const idx = Math.max(0, parseInt(match[1], 10) - 1); // 1-based to 0-based
-    const replacement = Array.isArray(value) ? value[0] : value;
-    if (replacement) {
-      while (icons.length <= idx) icons.push(undefined);
-      icons[idx] = replacement;
+  // Clone the node so we don't mutate the original
+  let result = { ...node };
+
+  const id = result.targetId;
+  if (id && typeof offers[id] === 'object' && offers[id] !== null) {
+    // Shallow merge: only keys present in offers[id] are overridden
+    result = { ...result, ...offers[id] };
+  }
+
+  // Recurse into children
+  Object.keys(result).forEach((key) => {
+    if (key === 'targetId') return; // don't recurse into the id itself
+    const value = result[key];
+    if (value && typeof value === 'object') {
+      result[key] = applyTargetIdOverrides(value, offers);
     }
   });
+
+  return result;
+}
+
+// Apply Target overrides to the homepage JSON (hero, icons, strip, footer)
+// based on `targetId` on each node.
+function applyTargetOverrides(homepage, targetOffers) {
+  const heroWithOverride = applyTargetIdOverrides(homepage?.hero, targetOffers);
+
+  let icons = (homepage?.icons || []).map((icon) =>
+    applyTargetIdOverrides(icon, targetOffers)
+  );
 
   // Fill to at least 4 items to keep layout stable.
   while (icons.length < 4 && icons.length > 0) {
     icons.push(...icons.slice(0, Math.min(4 - icons.length, icons.length)));
   }
 
-  const stripWithOverride = target?.strip || homepage?.strip;
+  const stripWithOverride = applyTargetIdOverrides(homepage?.strip, targetOffers);
+  const footerWithOverride = applyTargetIdOverrides(homepage?.footer, targetOffers);
 
   return {
     heroWithOverride,
     iconsWithOverride: icons.slice(0, 4),
     stripWithOverride,
+    footerWithOverride,
   };
 }
 
@@ -200,7 +223,7 @@ exports.handler = async (event) => {
       client.getEntries({ content_type: 'dataLayerVod', limit: 1, include: 1 }),
     ]);
 
-    console.log('Contentful hero JSON:', JSON.stringify(heroRes.items[0]?.fields, null, 2));
+   /* console.log('Contentful hero JSON:', JSON.stringify(heroRes.items[0]?.fields, null, 2));
     console.log(
       'Contentful icons JSON:',
       JSON.stringify(iconsRes.items.map((i) => i.fields), null, 2)
@@ -211,7 +234,8 @@ exports.handler = async (event) => {
       'Contentful dataLayer JSON:',
       JSON.stringify(dataLayerRes.items[0]?.fields, null, 2)
     );
-
+*/
+console.log("hero JSON:", JSON.stringify(heroRes.items[0]?.fields, null, 2));
     const hero = heroRes.items[0]?.fields || null;
     const icons = iconsRes.items.map((i) => i.fields);
     const strip = stripRes.items[0]?.fields || null;
@@ -265,12 +289,12 @@ exports.handler = async (event) => {
         },
       };
 
-      console.log('Target request (homepage)', {
+    /*  console.log('Target request (homepage)', {
         sessionId,
         mcvid,
         propertyToken,
         targetPayload,
-      });
+      });*/
 
       try {
         const targetRes = await fetch(
@@ -291,10 +315,10 @@ exports.handler = async (event) => {
           );
         } else {
           const targetJson = await targetRes.json();
-          console.log(
+          /* console.log(
             'Target response body (homepage)',
             JSON.stringify(targetJson, null, 2)
-          );
+          );*/
           targetOffer = mergeTargetOptions(targetJson);
 
           // Only send Analytics payload if Analytics consent is granted
@@ -320,8 +344,14 @@ exports.handler = async (event) => {
     }
 
     const homepage = { hero, icons, strip, footer, dataLayer };
-    const { heroWithOverride, iconsWithOverride, stripWithOverride } =
-      applyTargetOverrides(homepage, targetOffer);
+    const {
+      heroWithOverride,
+      iconsWithOverride,
+      stripWithOverride,
+      footerWithOverride,
+    } = applyTargetOverrides(homepage, targetOffer || {});
+
+    console.log("heroWithOverride:", JSON.stringify(heroWithOverride, null, 2));
 
     return {
       statusCode: 200,
@@ -330,7 +360,7 @@ exports.handler = async (event) => {
         hero: heroWithOverride,
         icons: iconsWithOverride,
         strip: stripWithOverride,
-        footer,
+        footer: footerWithOverride,
         dataLayer,
       }),
     };
