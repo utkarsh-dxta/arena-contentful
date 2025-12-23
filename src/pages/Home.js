@@ -2,6 +2,20 @@ import { useEffect, useState } from 'react';
 import { getHomepage } from '../contentfulClient';
 import '../App.css';
 
+// Normalize image URLs from Contentful or external (e.g., WordPress) sources.
+// - Ensures protocol is present for Contentful // URLs.
+// - Applies transform params only to Contentful assets; leaves external URLs untouched.
+const normalizeImageUrl = (url, params) => {
+  if (!url) return null;
+  const absolute = url.startsWith('//') ? `https:${url}` : url;
+
+  if (params && absolute.includes('ctfassets.net')) {
+    return `${absolute}${absolute.includes('?') ? '&' : '?'}${params}`;
+  }
+
+  return absolute;
+};
+
 function Home() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,10 +27,10 @@ function Home() {
       try {
         const homepage = await getHomepage({ preview });
 
-        console.log(
+      /*  console.log(
           'Merged homepage JSON (Contentful + Target on server):',
           homepage
-        );
+        );*/
 
         setData(homepage);
 
@@ -67,10 +81,11 @@ function Hero({ data }) {
   if (!data) return <SectionPlaceholder label="Hero content missing" />;
 
   // backgroundImage may be a string (Target) or a Contentful asset object.
-  const bgUrl =
+  const rawBg =
     typeof data.backgroundImage === 'string'
       ? data.backgroundImage
       : data.backgroundImage?.fields?.file?.url;
+  const bgUrl = normalizeImageUrl(rawBg, 'w=1600&fm=webp');
   const button = data.button?.fields || data.button;
 
   return (
@@ -116,10 +131,11 @@ function Icons({ data }) {
         <div className="icons-grid">
           {data.map((icon, idx) => {
             // image may be a string (Target) or a Contentful asset object.
-            const imageUrl =
+            const rawImage =
               typeof icon.image === 'string'
                 ? icon.image
                 : icon.image?.fields?.file?.url;
+            const imageUrl = normalizeImageUrl(rawImage, 'w=120&fm=webp');
             return (
               <div
                 key={idx}
@@ -131,7 +147,7 @@ function Icons({ data }) {
               >
                 {imageUrl && (
                   <div className="icon-image-wrapper">
-                    <img src={`${imageUrl}?w=120&fm=webp`} alt={icon.title} />
+                    <img src={imageUrl} alt={icon.title} />
                   </div>
                 )}
                 <h3>{icon.title}</h3>
