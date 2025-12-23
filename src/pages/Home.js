@@ -84,7 +84,9 @@ function Hero({ data }) {
   const rawBg =
     typeof data.backgroundImage === 'string'
       ? data.backgroundImage
-      : data.backgroundImage?.fields?.file?.url;
+      : data.backgroundImage?.fields?.file?.url ||
+        data.backgroundImage?.file?.url ||
+        data.backgroundImage?.url;
   const bgUrl = normalizeImageUrl(rawBg, 'w=1600&fm=webp');
   const button = data.button?.fields || data.button;
 
@@ -93,7 +95,7 @@ function Hero({ data }) {
       style={
         bgUrl
           ? {
-              backgroundImage: `url(${bgUrl}?w=1600&fm=webp)`,
+              backgroundImage: `url(${bgUrl})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }
@@ -134,7 +136,13 @@ function Icons({ data }) {
             const rawImage =
               typeof icon.image === 'string'
                 ? icon.image
-                : icon.image?.fields?.file?.url;
+                : icon.image?.fields?.file?.url ||
+                  icon.image?.file?.url ||
+                  icon.image?.url ||
+                  icon.fields?.image?.fields?.file?.url ||
+                  icon.fields?.image?.file?.url ||
+                  icon.fields?.image?.url ||
+                  icon.iconImage;
             const imageUrl = normalizeImageUrl(rawImage, 'w=120&fm=webp');
             return (
               <div
